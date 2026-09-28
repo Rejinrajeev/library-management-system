@@ -51,12 +51,17 @@ Errors: `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`.
 
 ## Books
 
-### GET /books?search=
-Who: any authenticated user. Lists books with copy counts.
+### GET /books?search=&page=&pageSize=
+Who: any authenticated user. Lists books with copy counts, paginated (the
+catalogue is expected to grow to 50,000 books, so this never loads the whole
+table). `page` defaults to 1, `pageSize` defaults to 20 and is capped at 100.
 
 Response `200`:
 ```json
-[{ "id": 1, "isbn": "9780132350884", "title": "Clean Code", "author": "Robert C. Martin", "available_copies": 2, "total_copies": 2 }]
+{
+  "books": [{ "id": 1, "isbn": "9780132350884", "title": "Clean Code", "author": "Robert C. Martin", "available_copies": 2, "total_copies": 2 }],
+  "total": 8, "page": 1, "pageSize": 20, "totalPages": 1
+}
 ```
 
 ### GET /books/:id
