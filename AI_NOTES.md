@@ -1,8 +1,7 @@
 # AI Usage Notes
 
 Claude (Claude Code) was used to write the entire application — schema,
-backend, frontend, tests and documentation — from the machine test's PDF
-brief, with the candidate reviewing and directing each step.
+backend, frontend, tests and documentation with the candidate reviewing and directing each step.
 
 ## What the AI got wrong and had to fix
 

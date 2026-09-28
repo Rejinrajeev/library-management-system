@@ -20,12 +20,18 @@ Common status codes: `400` validation error, `401` missing/invalid token,
 `403` wrong role, `404` not found, `409` conflict / business rule violation,
 `500` unexpected error.
 
+Any `:id` route parameter and any `bookId`/`memberId` field must be a positive
+integer; anything else (missing, non-numeric, negative) is rejected with
+`400 VALIDATION_ERROR` before it ever reaches a query.
+
 ---
 
 ## Auth
 
 ### POST /auth/register
-Who: anyone (creates a **member** account).
+Who: anyone (creates a **member** account). Name and email are trimmed; email
+is lowercased and must look like a real address (`x@y.z`); password must be
+at least 6 characters. Name is capped at 100 characters, email at 200.
 
 Request:
 ```json
@@ -54,7 +60,7 @@ Errors: `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`.
 ### GET /books?search=&page=&pageSize=
 Who: any authenticated user. Lists books with copy counts, paginated (the
 catalogue is expected to grow to 50,000 books, so this never loads the whole
-table). `page` defaults to 1, `pageSize` defaults to 20 and is capped at 100.
+table). `page` defaults to 1, `pageSize` defaults to 10 and is capped at 100.
 
 Response `200`:
 ```json
@@ -77,13 +83,27 @@ Response `200`:
 Errors: `404 NOT_FOUND`.
 
 ### POST /books
-Who: librarian only. Creates a book.
+Who: librarian only. Creates a book and, in the same request, its initial
+copies. `isbn`, `title` and `author` are trimmed and required (isbn/copy code
+fields capped at 32-50 characters, title/author at 200). `isbn` must contain
+at least 13 digits (hyphens/spaces are allowed as formatting but don't count
+toward the digit total, e.g. `978-0-13-235088-4` is valid). `numberOfCopies`
+defaults to `1` (0-100 allowed) and `copyCondition` defaults to `good`. Copy
+codes are generated as `${copyCodePrefix}-1`, `${copyCodePrefix}-2`, etc.;
+`copyCodePrefix` defaults to the book's `isbn` when omitted or blank.
 
 Request:
 ```json
-{ "isbn": "9780132350884", "title": "Clean Code", "author": "Robert C. Martin" }
+{ "isbn": "9780132350884", "title": "Clean Code", "author": "Robert C. Martin", "numberOfCopies": 2, "copyCondition": "good", "copyCodePrefix": "CC" }
 ```
-Response `201`: the created book. Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN`, `409 ISBN_TAKEN`.
+Response `201`: the created book plus its copies, e.g.
+```json
+{
+  "id": 1, "isbn": "9780132350884", "title": "Clean Code", "author": "Robert C. Martin",
+  "copies": [{ "id": 1, "copy_code": "CC-1", "condition": "good" }, { "id": 2, "copy_code": "CC-2", "condition": "good" }]
+}
+```
+Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN`, `409 ISBN_TAKEN`.
 
 ### PUT /books/:id
 Who: librarian only. Any of `isbn`, `title`, `author` may be supplied.
