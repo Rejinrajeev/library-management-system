@@ -1,5 +1,6 @@
 -- Library Management System schema
 
+DROP TABLE IF EXISTS reservations CASCADE;
 DROP TABLE IF EXISTS loans CASCADE;
 DROP TABLE IF EXISTS copies CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
@@ -42,8 +43,21 @@ CREATE TABLE loans (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Stretch goal: when a book has no available copy, a member can join its
+-- reservation queue (FIFO by created_at). fulfilled_at IS NULL means "waiting".
+CREATE TABLE reservations (
+  id SERIAL PRIMARY KEY,
+  book_id INTEGER NOT NULL REFERENCES books(id),
+  member_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  fulfilled_at TIMESTAMPTZ
+);
+
 CREATE INDEX idx_copies_book_id ON copies(book_id);
 CREATE INDEX idx_loans_copy_id ON loans(copy_id);
 CREATE INDEX idx_loans_member_id ON loans(member_id);
 -- Speeds up "find available copy" / "active loans" checks (return_date IS NULL)
 CREATE INDEX idx_loans_active ON loans(copy_id) WHERE return_date IS NULL;
+CREATE INDEX idx_reservations_active ON reservations(book_id, created_at) WHERE fulfilled_at IS NULL;
+-- A member can only have one outstanding reservation per book at a time.
+CREATE UNIQUE INDEX uq_reservations_active_member_book ON reservations(book_id, member_id) WHERE fulfilled_at IS NULL;
