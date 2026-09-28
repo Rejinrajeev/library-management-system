@@ -131,31 +131,61 @@ router.post('/', requireAuth, requireRole('member'), async (req, res, next) => {
   }
 });
 
-// Process a return. Librarian only (R7).
+// Process a return. Librarian only (R7). If the copy comes back in good
+// condition and someone is waiting in the reservation queue for this book,
+// it is immediately re-lent to whoever is first in line instead of being
+// opened up for anyone to borrow.
 router.post('/:id/return', requireAuth, requireRole('librarian'), async (req, res, next) => {
-  try {
-    const { condition } = req.body;
-    if (!['good', 'damaged', 'lost'].includes(condition)) {
-      throw new ApiError(400, 'VALIDATION_ERROR', "condition must be 'good', 'damaged' or 'lost'.");
-    }
+  const { condition } = req.body;
+  if (!['good', 'damaged', 'lost'].includes(condition)) {
+    return next(new ApiError(400, 'VALIDATION_ERROR', "condition must be 'good', 'damaged' or 'lost'."));
+  }
 
-    const loanResult = await pool.query('SELECT * FROM loans WHERE id = $1', [req.params.id]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const loanResult = await client.query('SELECT * FROM loans WHERE id = $1 FOR UPDATE', [req.params.id]);
     const loan = loanResult.rows[0];
     if (!loan) throw new ApiError(404, 'NOT_FOUND', 'Loan not found.');
     if (loan.return_date) throw new ApiError(409, 'ALREADY_RETURNED', 'This loan has already been returned.');
 
     const { fine } = calculateFine(loan.due_date, todayIST());
 
-    const updated = await pool.query(
+    const updated = await client.query(
       `UPDATE loans SET return_date = CURRENT_DATE, return_condition = $1, fine_amount = $2
        WHERE id = $3 RETURNING *`,
       [condition, fine, req.params.id]
     );
-    await pool.query('UPDATE copies SET condition = $1 WHERE id = $2', [condition, loan.copy_id]);
+    await client.query('UPDATE copies SET condition = $1 WHERE id = $2', [condition, loan.copy_id]);
 
-    res.json(updated.rows[0]);
+    let reservationFulfilled = null;
+    if (condition === 'good') {
+      const copy = await client.query('SELECT book_id FROM copies WHERE id = $1', [loan.copy_id]);
+      const nextInQueue = await client.query(
+        `SELECT * FROM reservations WHERE book_id = $1 AND fulfilled_at IS NULL
+         ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+        [copy.rows[0].book_id]
+      );
+      const reservation = nextInQueue.rows[0];
+      if (reservation) {
+        await client.query(
+          `INSERT INTO loans (copy_id, member_id, borrow_date, due_date)
+           VALUES ($1, $2, CURRENT_DATE, CURRENT_DATE + INTERVAL '14 days')`,
+          [loan.copy_id, reservation.member_id]
+        );
+        await client.query('UPDATE reservations SET fulfilled_at = now() WHERE id = $1', [reservation.id]);
+        reservationFulfilled = { memberId: reservation.member_id };
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ ...updated.rows[0], reservationFulfilled });
   } catch (err) {
+    await client.query('ROLLBACK');
     next(err);
+  } finally {
+    client.release();
   }
 });
 
