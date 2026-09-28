@@ -6,6 +6,7 @@ export default function Reports() {
   const { auth } = useAuth();
   const [mostBorrowed, setMostBorrowed] = useState([]);
   const [overdueFines, setOverdueFines] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -14,8 +15,11 @@ export default function Reports() {
         setMostBorrowed(mb);
         setOverdueFines(of);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [auth.token]);
+
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div className="two-col">

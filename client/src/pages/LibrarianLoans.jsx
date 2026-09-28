@@ -13,6 +13,7 @@ export default function LibrarianLoans() {
   const { auth } = useAuth();
   const [loans, setLoans] = useState([]);
   const [status, setStatus] = useState('');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [conditionById, setConditionById] = useState({});
@@ -23,6 +24,8 @@ export default function LibrarianLoans() {
       setLoans(await api.getLoans(auth.token, status ? { status } : {}));
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -56,55 +59,59 @@ export default function LibrarianLoans() {
         ))}
       </div>
       {error && <p className="error">{error}</p>}
-      <table>
-        <thead>
-          <tr>
-            <th>Book</th>
-            <th>Copy</th>
-            <th>Member</th>
-            <th>Borrowed</th>
-            <th>Due</th>
-            <th>Status</th>
-            <th>Fine (Rs)</th>
-            <th>Return</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loans.map((l) => (
-            <tr key={l.id}>
-              <td>{l.title}</td>
-              <td>{l.copy_code}</td>
-              <td>{l.member_name}</td>
-              <td>{l.borrow_date?.slice(0, 10)}</td>
-              <td>{l.due_date?.slice(0, 10)}</td>
-              <td>{l.return_date ? 'Returned' : l.is_overdue ? 'Overdue' : 'Active'}</td>
-              <td>{l.current_fine}</td>
-              <td>
-                {!l.return_date && (
-                  <div className="return-controls">
-                    <select
-                      value={conditionById[l.id] || 'good'}
-                      onChange={(e) => setConditionById({ ...conditionById, [l.id]: e.target.value })}
-                    >
-                      <option value="good">good</option>
-                      <option value="damaged">damaged</option>
-                      <option value="lost">lost</option>
-                    </select>
-                    <button disabled={busyId === l.id} onClick={() => handleReturn(l.id)}>
-                      {busyId === l.id ? 'Processing...' : 'Return'}
-                    </button>
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
-          {loans.length === 0 && (
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <table>
+          <thead>
             <tr>
-              <td colSpan={8}>No loans found.</td>
+              <th>Book</th>
+              <th>Copy</th>
+              <th>Member</th>
+              <th>Borrowed</th>
+              <th>Due</th>
+              <th>Status</th>
+              <th>Fine (Rs)</th>
+              <th>Return</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {loans.map((l) => (
+              <tr key={l.id}>
+                <td>{l.title}</td>
+                <td>{l.copy_code}</td>
+                <td>{l.member_name}</td>
+                <td>{l.borrow_date?.slice(0, 10)}</td>
+                <td>{l.due_date?.slice(0, 10)}</td>
+                <td>{l.return_date ? 'Returned' : l.is_overdue ? 'Overdue' : 'Active'}</td>
+                <td>{l.current_fine}</td>
+                <td>
+                  {!l.return_date && (
+                    <div className="return-controls">
+                      <select
+                        value={conditionById[l.id] || 'good'}
+                        onChange={(e) => setConditionById({ ...conditionById, [l.id]: e.target.value })}
+                      >
+                        <option value="good">good</option>
+                        <option value="damaged">damaged</option>
+                        <option value="lost">lost</option>
+                      </select>
+                      <button disabled={busyId === l.id} onClick={() => handleReturn(l.id)}>
+                        {busyId === l.id ? 'Processing...' : 'Return'}
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {loans.length === 0 && (
+              <tr>
+                <td colSpan={8}>No loans found.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

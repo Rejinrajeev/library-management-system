@@ -6,6 +6,7 @@ export default function Catalogue() {
   const { auth } = useAuth();
   const [books, setBooks] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newBook, setNewBook] = useState({ isbn: '', title: '', author: '' });
   const [newCopyCode, setNewCopyCode] = useState('');
@@ -15,6 +16,8 @@ export default function Catalogue() {
       setBooks(await api.getBooks(auth.token));
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -93,26 +96,30 @@ export default function Catalogue() {
           <button type="submit">Add book</button>
         </form>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Available</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {books.map((b) => (
-              <tr key={b.id}>
-                <td>{b.title}</td>
-                <td>{b.available_copies} / {b.total_copies}</td>
-                <td>
-                  <button onClick={() => openBook(b.id)}>Manage</button>
-                </td>
+        {loading ? (
+          <p>Loading...</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Available</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {books.map((b) => (
+                <tr key={b.id}>
+                  <td>{b.title}</td>
+                  <td>{b.available_copies} / {b.total_copies}</td>
+                  <td>
+                    <button onClick={() => openBook(b.id)}>Manage</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="card">
