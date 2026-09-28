@@ -31,6 +31,25 @@ app against a real database and cross-checking two endpoints that should
 agree, which is why that check is part of this submission's verification
 rather than something to take on faith from passing unit tests alone.
 
+## Second mistake: .env.example didn't match docker-compose.yml
+
+`backend/.env.example` had `DATABASE_URL` pointing at port `5432`, but
+`docker-compose.yml` exposes Postgres on `5433` (deliberately, to avoid
+clashing with a Postgres already installed locally on the default port).
+Every manual verification during development used a hand-edited `.env`, so
+this mismatch was never exercised — `cp .env.example .env`, as the README
+itself instructs, would have handed a fresh clone a `DATABASE_URL` the app
+couldn't connect with, which is an automatic "does not start" failure per
+the spec's setup check.
+
+It surfaced only by literally doing what the spec says the evaluator will
+do: `git clone` the pushed repo into a clean directory and follow the
+README's steps verbatim, rather than trusting that the documented steps
+matched the environment already set up during development. Fixed by
+correcting the port in `.env.example`; also fixed a stale reference in
+`README.md`'s project layout diagram to `schema.sql`/`queries.sql` files
+that were never actually created at the repo root.
+
 ## Other AI-assisted work
 
 - Generating the initial Express route structure, the transactional
