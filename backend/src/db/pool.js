@@ -13,4 +13,11 @@ const pool = new Pool({
   options: '-c timezone=Asia/Kolkata',
 });
 
+// node-postgres emits 'error' on the pool when an idle client's connection is
+// dropped (e.g. a network blip or the DB restarting). Without a listener here,
+// that becomes an uncaught exception and takes down the whole server.
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle Postgres client:', err.message);
+});
+
 module.exports = pool;
