@@ -98,6 +98,11 @@ async function run() {
   await addLoan(cc2, carol.rows[0].id, 10, 2, 'good', 0);
   await addLoan(dp2, carol.rows[0].id, 25, 9, 'damaged', 20);
 
+  // Carol also joins the reservation queue for The Pragmatic Programmer,
+  // whose only copy (pp1) is currently on loan to Bob. Returning that loan
+  // as "good" through the librarian UI will auto-fulfil this reservation.
+  await pool.query('INSERT INTO reservations (book_id, member_id) VALUES ($1, $2)', [pragmatic, carol.rows[0].id]);
+
   console.log('Seed complete.');
   console.log('Librarian login: librarian@library.com / librarian123');
   console.log('Member logins: alice@example.com/alice123, bob@example.com/bob123, carol@example.com/carol123');
