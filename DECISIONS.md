@@ -97,8 +97,18 @@
 - Reservations don't expire and can't be cancelled by the member — not
   mentioned in the spec, and out of scope for a stretch goal.
 
+10. **`GET /books` is paginated (`page`/`pageSize`, capped at 100) with
+    `LIMIT`/`OFFSET` applied in SQL**, not fetched whole and sliced in
+    JavaScript — the spec says to assume the catalogue grows to 50,000 books,
+    so the query must never pull the whole table. Verified this actually
+    matters: with 50,000 rows and no index, a deep page (`OFFSET 25000`) cost
+    ~60ms and spilled the sort to disk (`EXPLAIN ANALYZE` showed `Sort Method:
+    external merge`); adding `idx_books_title` (schema.sql) dropped that to
+    ~4ms via an index scan, so it's included in the schema rather than left
+    as a later optimisation. The response returns `total`/`totalPages`
+    alongside the page of rows so the frontend can render page controls
+    without a second request.
+
 ## Incomplete / out of scope
 
-- No pagination on `GET /books` — acceptable for a demo seed, but would need
-  addressing before the catalogue actually reaches 50,000 books.
 - No password reset / email verification flow (not requested).

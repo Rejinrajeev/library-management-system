@@ -13,26 +13,48 @@ const AVAILABLE_COPIES_SUBQUERY = `
    ))
 `;
 
-// List books with availability. Any authenticated user.
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+// List books with availability, paginated. Any authenticated user.
+// The catalogue is expected to grow to 50,000 books, so this never loads the
+// whole table: it always applies LIMIT/OFFSET at the database level.
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { search } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.pageSize, 10) || DEFAULT_PAGE_SIZE));
+    const offset = (page - 1) * pageSize;
+
     const params = [];
     let where = '';
     if (search) {
       params.push(`%${search}%`);
       where = `WHERE b.title ILIKE $1 OR b.author ILIKE $1 OR b.isbn ILIKE $1`;
     }
+
+    const countResult = await pool.query(`SELECT COUNT(*)::int AS total FROM books b ${where}`, params);
+    const total = countResult.rows[0].total;
+
+    const pageParams = [...params, pageSize, offset];
     const result = await pool.query(
       `SELECT b.id, b.isbn, b.title, b.author,
               ${AVAILABLE_COPIES_SUBQUERY} AS available_copies,
               (SELECT COUNT(*) FROM copies c WHERE c.book_id = b.id) AS total_copies
        FROM books b
        ${where}
-       ORDER BY b.title`,
-      params
+       ORDER BY b.title
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams
     );
-    res.json(result.rows);
+
+    res.json({
+      books: result.rows,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    });
   } catch (err) {
     next(err);
   }

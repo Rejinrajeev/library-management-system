@@ -1,22 +1,29 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import Pagination from '../components/Pagination.jsx';
 
 export default function Books() {
   const { auth } = useAuth();
   const [books, setBooks] = useState([]);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busyId, setBusyId] = useState(null);
 
-  async function load() {
+  async function load(targetPage = page) {
     setLoading(true);
     setError('');
     try {
-      const data = await api.getBooks(auth.token, search);
-      setBooks(data);
+      const data = await api.getBooks(auth.token, { search, page: targetPage });
+      setBooks(data.books);
+      setPage(data.page);
+      setTotalPages(data.totalPages);
+      setTotal(data.total);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -25,7 +32,7 @@ export default function Books() {
   }
 
   useEffect(() => {
-    load();
+    load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,7 +72,7 @@ export default function Books() {
         className="search-row"
         onSubmit={(e) => {
           e.preventDefault();
-          load();
+          load(1);
         }}
       >
         <input placeholder="Search by title, author or ISBN" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -78,6 +85,7 @@ export default function Books() {
       {loading ? (
         <p>Loading...</p>
       ) : (
+        <>
         <div className="table-scroll">
         <table>
           <thead>
@@ -117,6 +125,8 @@ export default function Books() {
           </tbody>
         </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} total={total} onChange={load} />
+        </>
       )}
     </div>
   );
