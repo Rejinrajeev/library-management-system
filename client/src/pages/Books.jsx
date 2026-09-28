@@ -44,6 +44,20 @@ export default function Books() {
     }
   }
 
+  async function handleReserve(bookId) {
+    setMessage('');
+    setError('');
+    setBusyId(bookId);
+    try {
+      await api.reserveBook(auth.token, bookId);
+      setMessage('Reserved. You will get the next available copy once it is returned.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="card">
       <h1>Books</h1>
@@ -82,9 +96,15 @@ export default function Books() {
                 <td>{b.isbn}</td>
                 <td>{b.available_copies} / {b.total_copies}</td>
                 <td>
-                  <button disabled={b.available_copies < 1 || busyId === b.id} onClick={() => handleBorrow(b.id)}>
-                    {busyId === b.id ? 'Borrowing...' : 'Borrow'}
-                  </button>
+                  {b.available_copies > 0 ? (
+                    <button disabled={busyId === b.id} onClick={() => handleBorrow(b.id)}>
+                      {busyId === b.id ? 'Borrowing...' : 'Borrow'}
+                    </button>
+                  ) : (
+                    <button disabled={busyId === b.id} onClick={() => handleReserve(b.id)}>
+                      {busyId === b.id ? 'Reserving...' : 'Reserve'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

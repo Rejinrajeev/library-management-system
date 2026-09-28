@@ -39,6 +39,9 @@ export const api = {
   borrowBook: (token, bookId) => request('/loans', { method: 'POST', body: { bookId }, token }),
   returnLoan: (token, loanId, condition) => request(`/loans/${loanId}/return`, { method: 'POST', body: { condition }, token }),
 
+  getReservations: (token) => request('/reservations', { token }),
+  reserveBook: (token, bookId) => request('/reservations', { method: 'POST', body: { bookId }, token }),
+
   getMostBorrowed: (token) => request('/reports/most-borrowed', { token }),
   getOverdueFines: (token) => request('/reports/overdue-fines', { token }),
 };
