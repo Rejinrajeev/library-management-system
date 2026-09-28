@@ -162,8 +162,51 @@ Request:
 ```json
 { "condition": "good" }
 ```
-Response `200`: the updated loan. Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN`,
-`404 NOT_FOUND`, `409 ALREADY_RETURNED`.
+Response `200`: the updated loan, plus `reservationFulfilled` (`null`, or
+`{ memberId }` if returning this copy in good condition immediately re-lent it
+to the next member in that book's reservation queue — see Reservations below).
+Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN`, `404 NOT_FOUND`,
+`409 ALREADY_RETURNED`.
+
+---
+
+## Reservations (stretch goal)
+
+### GET /reservations
+Who: any authenticated user. Members see only their own; librarians see all
+(optionally filtered by `?bookId=`). Waiting reservations are listed before
+fulfilled ones; `queue_position` counts how many waiting reservations for the
+same book (including this one) were made on or before it.
+
+Response `200`:
+```json
+[{
+  "id": 1, "book_id": 2, "title": "The Pragmatic Programmer", "author": "David Thomas & Andrew Hunt",
+  "member_id": 4, "member_name": "Carol", "created_at": "2026-09-28T05:40:10.157Z",
+  "fulfilled_at": null, "queue_position": 1
+}]
+```
+
+### POST /reservations
+Who: member only. Joins the reservation queue for a book — only allowed when
+**no** copy is currently available (otherwise just borrow it).
+
+Request:
+```json
+{ "bookId": 2 }
+```
+Response `201`: the created reservation.
+Errors:
+- `400 VALIDATION_ERROR` — missing bookId
+- `404 NOT_FOUND` — book does not exist
+- `409 COPY_AVAILABLE` — a copy is available; borrow instead of reserving
+- `409 ALREADY_BORROWED` — member already has this book on loan
+- `409 ALREADY_RESERVED` — member already has an active reservation for this book
+
+When a librarian returns a loan for this book in `good` condition
+(`POST /loans/:id/return`), the copy is not made generally available if
+anyone is waiting: it is immediately re-lent to whoever is first in the
+queue, and that return's response includes `reservationFulfilled: { memberId }`.
 
 ---
 

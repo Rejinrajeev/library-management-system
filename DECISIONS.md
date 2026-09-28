@@ -56,6 +56,19 @@
    states explicitly who can call it (also documented per-endpoint in
    `API.md`).
 
+9. **Reservation queue (stretch goal) fulfils atomically inside the same
+   transaction as the return**, not as a separate step afterwards. The
+   `return` endpoint now runs in a transaction: it locks the loan, updates it,
+   updates the copy's condition, and — if the condition is `good` — locks and
+   checks that book's earliest unfulfilled `reservations` row before
+   committing. This means the copy is never visible as "generally available"
+   in between; a concurrent `POST /loans` for that book cannot race in and
+   grab it ahead of the reservation, because the copy only ever becomes
+   available (in the derived sense from decision 1) once this transaction
+   commits — by which point it may already have a new loan row from the
+   reservation. A partial unique index (`uq_reservations_active_member_book`)
+   stops a member from double-reserving the same book.
+
 ## Assumptions
 
 - "Members borrow a book, not a specific copy" (R2) means the frontend never
@@ -72,10 +85,20 @@
 - "Whole calendar days late" is computed as the difference between the due
   date and return date at midnight IST, rounded to the nearest day (there is
   no fractional day case since both are DATE values).
+- A reservation can only be made when a book has zero available copies (it's
+  rejected as `409 COPY_AVAILABLE` otherwise, pointing the member at borrowing
+  directly). Fulfilling the next reservation on return does not re-check R3
+  (loan limit) or R4 (overdue) for that member — the spec doesn't say what
+  should happen if the person at the front of the queue is no longer
+  eligible when their turn comes up, and re-checking would mean either
+  skipping them (silently losing their place) or leaving the book unlent
+  despite someone waiting. Kept simple: whoever is first in the queue when a
+  copy comes back in good condition gets it.
+- Reservations don't expire and can't be cancelled by the member — not
+  mentioned in the spec, and out of scope for a stretch goal.
 
 ## Incomplete / out of scope
 
-- The reservation queue stretch goal is not implemented.
 - No pagination on `GET /books` — acceptable for a demo seed, but would need
   addressing before the catalogue actually reaches 50,000 books.
 - No password reset / email verification flow (not requested).
