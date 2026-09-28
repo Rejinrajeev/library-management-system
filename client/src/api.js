@@ -23,7 +23,11 @@ export const api = {
   register: (name, email, password) => request('/auth/register', { method: 'POST', body: { name, email, password } }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
 
-  getBooks: (token, search) => request(`/books${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token }),
+  getBooks: (token, { search, page = 1, pageSize = 20 } = {}) => {
+    const params = new URLSearchParams({ page, pageSize });
+    if (search) params.set('search', search);
+    return request(`/books?${params.toString()}`, { token });
+  },
   getBook: (token, id) => request(`/books/${id}`, { token }),
   createBook: (token, book) => request('/books', { method: 'POST', body: book, token }),
   updateBook: (token, id, book) => request(`/books/${id}`, { method: 'PUT', body: book, token }),
