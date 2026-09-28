@@ -5,6 +5,7 @@ const authRoutes = require('./routes/auth');
 const bookRoutes = require('./routes/books');
 const copyRoutes = require('./routes/copies');
 const loanRoutes = require('./routes/loans');
+const reservationRoutes = require('./routes/reservations');
 const reportRoutes = require('./routes/reports');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/copies', copyRoutes);
 app.use('/api/loans', loanRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api/reports', reportRoutes);
 
 app.use(notFoundHandler);
