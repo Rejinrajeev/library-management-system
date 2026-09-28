@@ -62,6 +62,7 @@ export default function LibrarianLoans() {
       {loading ? (
         <p>Loading...</p>
       ) : (
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -111,6 +112,7 @@ export default function LibrarianLoans() {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

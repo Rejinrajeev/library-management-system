@@ -99,6 +99,7 @@ export default function Catalogue() {
         {loading ? (
           <p>Loading...</p>
         ) : (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -119,6 +120,7 @@ export default function Catalogue() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -131,6 +133,7 @@ export default function Catalogue() {
             <button onClick={() => handleDeleteBook(selected.id)}>Delete book</button>
 
             <h3>Copies</h3>
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -155,6 +158,7 @@ export default function Catalogue() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             <form className="stacked-form" onSubmit={handleAddCopy}>
               <h4>Add a copy</h4>

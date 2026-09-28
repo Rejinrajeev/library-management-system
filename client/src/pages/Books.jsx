@@ -78,6 +78,7 @@ export default function Books() {
       {loading ? (
         <p>Loading...</p>
       ) : (
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -115,6 +116,7 @@ export default function Books() {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

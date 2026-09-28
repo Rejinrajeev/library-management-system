@@ -26,6 +26,7 @@ export default function Reports() {
       <div className="card">
         <h2>Most borrowed books (last 30 days)</h2>
         {error && <p className="error">{error}</p>}
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -49,10 +50,12 @@ export default function Reports() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="card">
         <h2>Members with overdue loans</h2>
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -76,6 +79,7 @@ export default function Reports() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

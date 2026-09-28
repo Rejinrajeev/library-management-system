@@ -28,6 +28,7 @@ export default function MyLoans() {
       <div className="card">
         <h1>My Loans</h1>
         {error && <p className="error">{error}</p>}
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -57,10 +58,12 @@ export default function MyLoans() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="card">
         <h2>My Reservations</h2>
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -84,6 +87,7 @@ export default function MyLoans() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   );
