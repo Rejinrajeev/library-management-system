@@ -83,13 +83,14 @@ step 1 to be reachable; it is skipped automatically otherwise.
 ## Project layout
 
 ```
-backend/    Express API, schema, seed script, tests
-client/     React app (Vite)
-schema.sql        database schema (also in backend/)
-queries.sql       Q1 and Q2 SQL reports (also in backend/)
-API.md            endpoint reference
-DECISIONS.md      key design decisions and assumptions
-AI_NOTES.md       how AI tools were used
+backend/              Express API
+backend/schema.sql    database schema
+backend/queries.sql   Q1 and Q2 SQL reports
+backend/tests/        fine-calculation and R6 concurrency tests
+client/               React app (Vite)
+API.md                endpoint reference
+DECISIONS.md          key design decisions and assumptions
+AI_NOTES.md           how AI tools were used
 ```
 
 ## SQL reports
