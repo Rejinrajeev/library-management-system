@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db/pool');
 const ApiError = require('../utils/ApiError');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireIdParam } = require('../utils/validate');
 
 const router = express.Router();
 
@@ -13,8 +14,44 @@ const AVAILABLE_COPIES_SUBQUERY = `
    ))
 `;
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
+const MIN_ISBN_DIGITS = 13;
+const MAX_ISBN_LENGTH = 32;
+const MAX_TITLE_LENGTH = 200;
+const MAX_AUTHOR_LENGTH = 200;
+const MAX_COPY_CODE_LENGTH = 50;
+
+// Trims a required string field and rejects it if empty or too long.
+function cleanRequired(value, fieldName, maxLength) {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) throw new ApiError(400, 'VALIDATION_ERROR', `${fieldName} is required.`);
+  if (trimmed.length > maxLength) {
+    throw new ApiError(400, 'VALIDATION_ERROR', `${fieldName} must be ${maxLength} characters or fewer.`);
+  }
+  return trimmed;
+}
+
+// Trims an optional string field; returns undefined if not supplied (or blank)
+// so callers can treat it as "unchanged" / "use the default".
+function cleanOptional(value, fieldName, maxLength) {
+  if (value === undefined || value === null) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > maxLength) {
+    throw new ApiError(400, 'VALIDATION_ERROR', `${fieldName} must be ${maxLength} characters or fewer.`);
+  }
+  return trimmed;
+}
+
+// isbn must contain at least 13 digits (hyphens/spaces are allowed as
+// formatting, e.g. "978-0-13-235088-4", but don't count toward the length).
+function validateIsbn(trimmed) {
+  const digitsOnly = trimmed.replace(/[\s-]/g, '');
+  if (!/^\d+$/.test(digitsOnly) || digitsOnly.length < MIN_ISBN_DIGITS) {
+    throw new ApiError(400, 'VALIDATION_ERROR', `isbn must contain at least ${MIN_ISBN_DIGITS} digits.`);
+  }
+}
 
 // List books with availability, paginated. Any authenticated user.
 // The catalogue is expected to grow to 50,000 books, so this never loads the
@@ -61,7 +98,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // Book detail with its copies. Any authenticated user.
-router.get('/:id', requireAuth, async (req, res, next) => {
+router.get('/:id', requireAuth, requireIdParam(), async (req, res, next) => {
   try {
     const bookResult = await pool.query(
       `SELECT b.id, b.isbn, b.title, b.author, ${AVAILABLE_COPIES_SUBQUERY} AS available_copies
@@ -83,34 +120,68 @@ router.get('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-// Create a book. Librarian only.
+// Create a book, optionally with its initial copies. Librarian only.
 router.post('/', requireAuth, requireRole('librarian'), async (req, res, next) => {
+  let client;
   try {
-    const { isbn, title, author } = req.body;
-    if (!isbn || !title || !author) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'isbn, title and author are required.');
+    const isbn = cleanRequired(req.body.isbn, 'isbn', MAX_ISBN_LENGTH);
+    validateIsbn(isbn);
+    const title = cleanRequired(req.body.title, 'title', MAX_TITLE_LENGTH);
+    const author = cleanRequired(req.body.author, 'author', MAX_AUTHOR_LENGTH);
+
+    const { numberOfCopies, copyCondition } = req.body;
+    const copyCount = numberOfCopies === undefined || numberOfCopies === '' ? 1 : parseInt(numberOfCopies, 10);
+    if (!Number.isInteger(copyCount) || copyCount < 0 || copyCount > 100) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'numberOfCopies must be a whole number between 0 and 100.');
     }
-    const result = await pool.query(
+    const condition = copyCondition || 'good';
+    if (!['good', 'damaged', 'lost'].includes(condition)) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'copyCondition must be good, damaged or lost.');
+    }
+    const codePrefix = cleanOptional(req.body.copyCodePrefix, 'copyCodePrefix', MAX_COPY_CODE_LENGTH) || isbn;
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const bookResult = await client.query(
       `INSERT INTO books (isbn, title, author) VALUES ($1, $2, $3) RETURNING *`,
       [isbn, title, author]
     );
-    res.status(201).json(result.rows[0]);
+    const book = bookResult.rows[0];
+
+    const copies = [];
+    for (let i = 1; i <= copyCount; i += 1) {
+      const copyResult = await client.query(
+        `INSERT INTO copies (book_id, copy_code, condition) VALUES ($1, $2, $3) RETURNING *`,
+        [book.id, `${codePrefix}-${i}`, condition]
+      );
+      copies.push(copyResult.rows[0]);
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ ...book, copies });
   } catch (err) {
+    if (client) await client.query('ROLLBACK');
     if (err.code === '23505') {
       return next(new ApiError(409, 'ISBN_TAKEN', 'A book with that ISBN already exists.'));
     }
     next(err);
+  } finally {
+    if (client) client.release();
   }
 });
 
-// Update a book. Librarian only.
-router.put('/:id', requireAuth, requireRole('librarian'), async (req, res, next) => {
+// Update a book. Librarian only. Any of isbn/title/author may be supplied.
+router.put('/:id', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   try {
-    const { isbn, title, author } = req.body;
+    const isbn = cleanOptional(req.body.isbn, 'isbn', MAX_ISBN_LENGTH);
+    if (isbn !== undefined) validateIsbn(isbn);
+    const title = cleanOptional(req.body.title, 'title', MAX_TITLE_LENGTH);
+    const author = cleanOptional(req.body.author, 'author', MAX_AUTHOR_LENGTH);
     const result = await pool.query(
       `UPDATE books SET isbn = COALESCE($1, isbn), title = COALESCE($2, title), author = COALESCE($3, author)
        WHERE id = $4 RETURNING *`,
-      [isbn, title, author, req.params.id]
+      [isbn ?? null, title ?? null, author ?? null, req.params.id]
     );
     if (!result.rows[0]) throw new ApiError(404, 'NOT_FOUND', 'Book not found.');
     res.json(result.rows[0]);
@@ -123,7 +194,7 @@ router.put('/:id', requireAuth, requireRole('librarian'), async (req, res, next)
 });
 
 // Delete a book. Librarian only. R8: a book that has ever been lent cannot be deleted.
-router.delete('/:id', requireAuth, requireRole('librarian'), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   try {
     const everLent = await pool.query(
       `SELECT 1 FROM loans l JOIN copies c ON c.id = l.copy_id WHERE c.book_id = $1 LIMIT 1`,
@@ -142,14 +213,17 @@ router.delete('/:id', requireAuth, requireRole('librarian'), async (req, res, ne
 });
 
 // Add a copy to a book. Librarian only.
-router.post('/:id/copies', requireAuth, requireRole('librarian'), async (req, res, next) => {
+router.post('/:id/copies', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   try {
-    const { copyCode, condition } = req.body;
-    if (!copyCode) throw new ApiError(400, 'VALIDATION_ERROR', 'copyCode is required.');
+    const copyCode = cleanRequired(req.body.copyCode, 'copyCode', MAX_COPY_CODE_LENGTH);
+    const condition = req.body.condition || 'good';
+    if (!['good', 'damaged', 'lost'].includes(condition)) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'condition must be good, damaged or lost.');
+    }
     const bookExists = await pool.query('SELECT 1 FROM books WHERE id = $1', [req.params.id]);
     if (!bookExists.rows[0]) throw new ApiError(404, 'NOT_FOUND', 'Book not found.');
     const result = await pool.query(
-      `INSERT INTO copies (book_id, copy_code, condition) VALUES ($1, $2, COALESCE($3, 'good')) RETURNING *`,
+      `INSERT INTO copies (book_id, copy_code, condition) VALUES ($1, $2, $3) RETURNING *`,
       [req.params.id, copyCode, condition]
     );
     res.status(201).json(result.rows[0]);

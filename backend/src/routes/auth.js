@@ -6,6 +6,11 @@ const ApiError = require('../utils/ApiError');
 
 const router = express.Router();
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 6;
+const MAX_NAME_LENGTH = 100;
+const MAX_EMAIL_LENGTH = 200;
+
 function signToken(user) {
   return jwt.sign(
     { id: user.id, name: user.name, email: user.email, role: user.role },
@@ -16,9 +21,20 @@ function signToken(user) {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const { password } = req.body;
     if (!name || !email || !password) {
       throw new ApiError(400, 'VALIDATION_ERROR', 'name, email and password are required.');
+    }
+    if (name.length > MAX_NAME_LENGTH) {
+      throw new ApiError(400, 'VALIDATION_ERROR', `name must be ${MAX_NAME_LENGTH} characters or fewer.`);
+    }
+    if (email.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(email)) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'email must be a valid email address.');
+    }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      throw new ApiError(400, 'VALIDATION_ERROR', `password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
     }
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
@@ -38,7 +54,8 @@ router.post('/register', async (req, res, next) => {
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const { password } = req.body;
     if (!email || !password) {
       throw new ApiError(400, 'VALIDATION_ERROR', 'email and password are required.');
     }

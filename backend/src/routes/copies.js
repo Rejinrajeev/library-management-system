@@ -2,11 +2,12 @@ const express = require('express');
 const pool = require('../db/pool');
 const ApiError = require('../utils/ApiError');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireIdParam } = require('../utils/validate');
 
 const router = express.Router();
 
 // Update a copy's condition. Librarian only.
-router.put('/:id', requireAuth, requireRole('librarian'), async (req, res, next) => {
+router.put('/:id', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   try {
     const { condition } = req.body;
     if (!['good', 'damaged', 'lost'].includes(condition)) {
@@ -24,7 +25,7 @@ router.put('/:id', requireAuth, requireRole('librarian'), async (req, res, next)
 });
 
 // Delete a copy. Librarian only. A copy that is currently on loan or has loan history cannot be deleted.
-router.delete('/:id', requireAuth, requireRole('librarian'), async (req, res, next) => {
+router.delete('/:id', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   try {
     const everLent = await pool.query('SELECT 1 FROM loans WHERE copy_id = $1 LIMIT 1', [req.params.id]);
     if (everLent.rows[0]) {

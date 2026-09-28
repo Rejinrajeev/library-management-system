@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const ApiError = require('../utils/ApiError');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { calculateFine, todayIST } = require('../utils/fine');
+const { parsePositiveInt, requireIdParam } = require('../utils/validate');
 
 const router = express.Router();
 
@@ -38,7 +39,11 @@ router.get('/', requireAuth, async (req, res, next) => {
       params.push(req.user.id);
       conditions.push(`l.member_id = $${params.length}`);
     } else if (req.query.memberId) {
-      params.push(req.query.memberId);
+      const memberId = parsePositiveInt(req.query.memberId);
+      if (memberId === null) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'memberId must be a positive integer.');
+      }
+      params.push(memberId);
       conditions.push(`l.member_id = $${params.length}`);
     }
 
@@ -60,11 +65,14 @@ router.get('/', requireAuth, async (req, res, next) => {
 
 // Borrow a book. Member only. Assigns an available copy atomically (R2, R6).
 router.post('/', requireAuth, requireRole('member'), async (req, res, next) => {
-  const { bookId } = req.body;
-  if (!bookId) throw new ApiError(400, 'VALIDATION_ERROR', 'bookId is required.');
-
-  const client = await pool.connect();
+  let client;
   try {
+    const bookId = parsePositiveInt(req.body.bookId);
+    if (bookId === null) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'bookId is required and must be a positive integer.');
+    }
+
+    client = await pool.connect();
     await client.query('BEGIN');
 
     // Serialize concurrent borrow attempts by the same member.
@@ -124,10 +132,10 @@ router.post('/', requireAuth, requireRole('member'), async (req, res, next) => {
     await client.query('COMMIT');
     res.status(201).json(loan.rows[0]);
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     next(err);
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -135,7 +143,7 @@ router.post('/', requireAuth, requireRole('member'), async (req, res, next) => {
 // condition and someone is waiting in the reservation queue for this book,
 // it is immediately re-lent to whoever is first in line instead of being
 // opened up for anyone to borrow.
-router.post('/:id/return', requireAuth, requireRole('librarian'), async (req, res, next) => {
+router.post('/:id/return', requireAuth, requireRole('librarian'), requireIdParam(), async (req, res, next) => {
   const { condition } = req.body;
   if (!['good', 'damaged', 'lost'].includes(condition)) {
     return next(new ApiError(400, 'VALIDATION_ERROR', "condition must be 'good', 'damaged' or 'lost'."));

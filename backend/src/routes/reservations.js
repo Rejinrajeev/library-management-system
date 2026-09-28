@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db/pool');
 const ApiError = require('../utils/ApiError');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { parsePositiveInt } = require('../utils/validate');
 
 const router = express.Router();
 
@@ -14,7 +15,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       params.push(req.user.id);
       where = `WHERE r.member_id = $${params.length}`;
     } else if (req.query.bookId) {
-      params.push(req.query.bookId);
+      const bookId = parsePositiveInt(req.query.bookId);
+      if (bookId === null) throw new ApiError(400, 'VALIDATION_ERROR', 'bookId must be a positive integer.');
+      params.push(bookId);
       where = `WHERE r.book_id = $${params.length}`;
     }
 
@@ -40,8 +43,8 @@ router.get('/', requireAuth, async (req, res, next) => {
 // Reserve a book. Member only. Only allowed when no copy is currently available.
 router.post('/', requireAuth, requireRole('member'), async (req, res, next) => {
   try {
-    const { bookId } = req.body;
-    if (!bookId) throw new ApiError(400, 'VALIDATION_ERROR', 'bookId is required.');
+    const bookId = parsePositiveInt(req.body.bookId);
+    if (bookId === null) throw new ApiError(400, 'VALIDATION_ERROR', 'bookId is required and must be a positive integer.');
 
     const book = await pool.query('SELECT 1 FROM books WHERE id = $1', [bookId]);
     if (!book.rows[0]) throw new ApiError(404, 'NOT_FOUND', 'Book not found.');

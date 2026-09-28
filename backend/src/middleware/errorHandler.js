@@ -24,6 +24,13 @@ function errorHandler(err, req, res, next) {
     });
   }
 
+  // Postgres invalid_text_representation, e.g. a non-numeric id compared
+  // against an integer column. Routes validate ids before querying, but this
+  // is a defense-in-depth backstop so a gap fails clean instead of as a 500.
+  if (err.code === '22P02') {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request data.' } });
+  }
+
   console.error(err);
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.' } });
 }
