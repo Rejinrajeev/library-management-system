@@ -16,7 +16,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const data = await api.login(email, password);
+      const data = await api.login(email.trim(), password);
       login(data.user, data.token);
       navigate(data.user.role === 'librarian' ? '/loans' : '/books');
     } catch (err) {
@@ -39,8 +39,6 @@ export default function Login() {
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Log in'}</button>
       </form>
-      <p className="hint">Librarian: librarian@library.com / librarian123</p>
-      <p className="hint">Member example: alice@example.com / alice123</p>
     </div>
   );
 }
